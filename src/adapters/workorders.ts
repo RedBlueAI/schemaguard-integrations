@@ -1,75 +1,53 @@
-/**
- * Work Order API Adapter
- *
- * Maps the Work Order API response to our internal data model.
- * Baseline schema version: 1.0
- */
+import { WorkOrderOld, WorkOrderNew, WorkOrder } from '../models/workOrderModels';
 
-export interface WorkOrder {
-  id: string;
-  status: string;
-  priority: string;
-  client: {
-    name: string;
-    address: {
-      street: string;
-      city: string;
-      state: string;
-      zip: string;
-    };
-  };
-  serviceType: string;
-  assignedTech: {
-    id: string;
-    name: string;
-    certifications: string[];
-  };
-  scheduledDate: string;
-  estimatedDurationHours: number;
-  partsRequired: Array<{
-    partId: string;
-    name: string;
-    qty: number;
-  }>;
-  notes: string;
+/**
+ * Type guard to check if the work order is in the old format.
+ * @param workOrder - The work order object to check.
+ * @returns True if the work order is in the old format, false otherwise.
+ */
+function isOldWorkOrder(workOrder: any): workOrder is WorkOrderOld {
+  return 'assigned_tech' in workOrder;
 }
 
 /**
- * Transform raw API response to internal model.
+ * Type guard to check if the work order is in the new format.
+ * @param workOrder - The work order object to check.
+ * @returns True if the work order is in the new format, false otherwise.
  */
-export function parseWorkOrderResponse(raw: Record<string, unknown>): WorkOrder {
-  const wo = raw.work_order as Record<string, unknown>;
-  const client = wo.client as Record<string, unknown>;
-  const address = client.address as Record<string, unknown>;
-  const tech = wo.assigned_tech as Record<string, unknown>;
-  const parts = wo.parts_required as Array<Record<string, unknown>>;
+function isNewWorkOrder(workOrder: any): workOrder is WorkOrderNew {
+  return 'technician' in workOrder;
+}
 
-  return {
-    id: wo.id as string,
-    status: wo.status as string,
-    priority: wo.priority as string,
-    client: {
-      name: client.name as string,
-      address: {
-        street: address.street as string,
-        city: address.city as string,
-        state: address.state as string,
-        zip: address.zip as string,
-      },
-    },
-    serviceType: wo.service_type as string,
-    assignedTech: {
-      id: tech.id as string,
-      name: tech.name as string,
-      certifications: tech.certifications as string[],
-    },
-    scheduledDate: wo.scheduled_date as string,
-    estimatedDurationHours: wo.estimated_duration_hours as number,
-    partsRequired: parts.map((p) => ({
-      partId: p.part_id as string,
-      name: p.name as string,
-      qty: p.qty as number,
-    })),
-    notes: wo.notes as string,
-  };
+/**
+ * Adapter function to normalize work order data.
+ * This function will convert both old and new format work orders into a unified format.
+ * @param workOrder - The work order object to normalize.
+ * @returns A normalized work order object.
+ */
+export function normalizeWorkOrder(workOrder: any): WorkOrder {
+  if (isOldWorkOrder(workOrder)) {
+    return {
+      ...workOrder,
+      technician: workOrder.assigned_tech,
+      assigned_tech: undefined // Remove old field
+    };
+  } else if (isNewWorkOrder(workOrder)) {
+    return workOrder;
+  } else {
+    throw new Error('Invalid work order format');
+  }
+}
+
+/**
+ * Public API for processing work orders.
+ * @param workOrderData - Raw work order data to process.
+ * @returns Processed work order data in a unified format.
+ */
+export function processWorkOrder(workOrderData: any): WorkOrder {
+  try {
+    return normalizeWorkOrder(workOrderData);
+  } catch (error) {
+    console.error('Error processing work order:', error);
+    throw error;
+  }
 }
