@@ -1,45 +1,60 @@
-/**
- * Inventory Management API Adapter
- *
- * Maps the Inventory API response to our internal data model.
- * Baseline schema version: 1.0
- */
-
-export interface InventoryItem {
-  sku: string;
+interface OldItem {
+  id: string;
   name: string;
-  quantity: number;
-  warehouse: string;
-  lastRestock: string;
-  unitPrice: number;
-  category: string;
+  unit_price: number;
 }
 
-export interface InventoryResponse {
-  items: InventoryItem[];
-  totalCount: number;
-  page: number;
-  perPage: number;
+interface NewItem {
+  id: string;
+  name: string;
+}
+
+interface OldInventory {
+  items: OldItem[];
+}
+
+interface NewInventory {
+  items: NewItem[];
 }
 
 /**
- * Transform raw API response to internal model.
+ * Type guard to check if an item is of type OldItem.
+ * @param item - The item to check.
+ * @returns True if the item has a 'unit_price' field, false otherwise.
  */
-export function parseInventoryResponse(raw: Record<string, unknown>): InventoryResponse {
-  const items = (raw.items as Array<Record<string, unknown>>).map((item) => ({
-    sku: item.sku as string,
-    name: item.name as string,
-    quantity: item.quantity as number,
-    warehouse: item.warehouse as string,
-    lastRestock: item.last_restock as string,
-    unitPrice: item.unit_price as number,
-    category: item.category as string,
-  }));
+function isOldItem(item: any): item is OldItem {
+  return 'unit_price' in item;
+}
 
-  return {
-    items,
-    totalCount: raw.total_count as number,
-    page: raw.page as number,
-    perPage: raw.per_page as number,
-  };
+/**
+ * Parses the inventory data and normalizes it to the OldInventory format.
+ * If the 'unit_price' is missing, it defaults to 0.
+ * @param inventory - The inventory data to parse.
+ * @returns An inventory object compatible with the OldInventory interface.
+ */
+function parseInventory(inventory: any): OldInventory {
+  if (Array.isArray(inventory.items)) {
+    return {
+      items: inventory.items.map(item => {
+        if (isOldItem(item)) {
+          return item;
+        } else {
+          return {
+            ...item,
+            unit_price: 0 // Default unit price for backward compatibility
+          };
+        }
+      })
+    };
+  }
+  throw new Error('Invalid inventory format');
+}
+
+/**
+ * Public API to normalize inventory data.
+ * @param data - The raw inventory data.
+ * @returns A normalized inventory object.
+ */
+export function normalizeInventoryData(data: any): OldInventory {
+  return parseInventory(data);
 }
