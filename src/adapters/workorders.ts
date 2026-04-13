@@ -1,75 +1,71 @@
-/**
- * Work Order API Adapter
- *
- * Maps the Work Order API response to our internal data model.
- * Baseline schema version: 1.0
- */
+interface OldWorkOrder {
+  work_order: {
+    assigned_tech: string;
+    [key: string]: any;
+  };
+}
 
-export interface WorkOrder {
-  id: string;
-  status: string;
-  priority: string;
-  client: {
-    name: string;
-    address: {
-      street: string;
-      city: string;
-      state: string;
-      zip: string;
-    };
+interface NewWorkOrder {
+  work_order: {
+    technician: string;
+    [key: string]: any;
   };
-  serviceType: string;
-  assignedTech: {
-    id: string;
-    name: string;
-    certifications: string[];
+}
+
+interface NormalizedWorkOrder {
+  work_order: {
+    technician: string;
+    [key: string]: any;
   };
-  scheduledDate: string;
-  estimatedDurationHours: number;
-  partsRequired: Array<{
-    partId: string;
-    name: string;
-    qty: number;
-  }>;
-  notes: string;
 }
 
 /**
- * Transform raw API response to internal model.
+ * Type guard to check if the work order follows the old schema.
+ * @param order - The work order to check.
  */
-export function parseWorkOrderResponse(raw: Record<string, unknown>): WorkOrder {
-  const wo = raw.work_order as Record<string, unknown>;
-  const client = wo.client as Record<string, unknown>;
-  const address = client.address as Record<string, unknown>;
-  const tech = wo.assigned_tech as Record<string, unknown>;
-  const parts = wo.parts_required as Array<Record<string, unknown>>;
+function isOldWorkOrder(order: any): order is OldWorkOrder {
+  return order?.work_order?.assigned_tech !== undefined;
+}
 
-  return {
-    id: wo.id as string,
-    status: wo.status as string,
-    priority: wo.priority as string,
-    client: {
-      name: client.name as string,
-      address: {
-        street: address.street as string,
-        city: address.city as string,
-        state: address.state as string,
-        zip: address.zip as string,
-      },
-    },
-    serviceType: wo.service_type as string,
-    assignedTech: {
-      id: tech.id as string,
-      name: tech.name as string,
-      certifications: tech.certifications as string[],
-    },
-    scheduledDate: wo.scheduled_date as string,
-    estimatedDurationHours: wo.estimated_duration_hours as number,
-    partsRequired: parts.map((p) => ({
-      partId: p.part_id as string,
-      name: p.name as string,
-      qty: p.qty as number,
-    })),
-    notes: wo.notes as string,
-  };
+/**
+ * Type guard to check if the work order follows the new schema.
+ * @param order - The work order to check.
+ */
+function isNewWorkOrder(order: any): order is NewWorkOrder {
+  return order?.work_order?.technician !== undefined;
+}
+
+/**
+ * Normalizes a work order to the new schema format.
+ * Handles both old and new schema versions.
+ * @param order - The work order to normalize.
+ * @returns A normalized work order with the 'technician' field.
+ */
+export function normalizeWorkOrder(order: any): NormalizedWorkOrder {
+  if (isOldWorkOrder(order)) {
+    return {
+      work_order: {
+        ...order.work_order,
+        technician: order.work_order.assigned_tech
+      }
+    };
+  } else if (isNewWorkOrder(order)) {
+    return order;
+  } else {
+    throw new Error('Invalid work order schema');
+  }
+}
+
+/**
+ * Public API to handle work order data normalization.
+ * @param order - The work order data to process.
+ * @returns A normalized work order.
+ */
+export function processWorkOrder(order: any): NormalizedWorkOrder {
+  try {
+    return normalizeWorkOrder(order);
+  } catch (error) {
+    console.error('Failed to process work order:', error);
+    throw error;
+  }
 }
