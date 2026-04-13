@@ -1,62 +1,91 @@
-interface OldInventoryItem {
-  sku: string;
+interface OldItem {
+  id: string;
+  name: string;
   quantity: number;
+  warehouse: string; // Old field name
 }
 
-interface NewInventoryItem {
-  item_code: string;
-  quantity: string;
-}
-
-interface NormalizedInventoryItem {
-  itemCode: string;
+interface NewItem {
+  id: string;
+  name: string;
   quantity: number;
+  location_zone: string; // New field name
+  location: {
+    aisle: string;
+    shelf: string;
+    bin: string;
+  };
+}
+
+interface NormalizedItem {
+  id: string;
+  name: string;
+  quantity: number;
+  location_zone: string;
+  location?: {
+    aisle: string;
+    shelf: string;
+    bin: string;
+  };
 }
 
 /**
- * Type guard to check if the item is of type OldInventoryItem
+ * Type guard to check if an item is of type NewItem.
+ * @param item - The item to check.
  */
-function isOldInventoryItem(item: any): item is OldInventoryItem {
-  return typeof item.sku === 'string' && typeof item.quantity === 'number';
+function isNewItem(item: any): item is NewItem {
+  return (
+    typeof item.location_zone === 'string' &&
+    typeof item.location === 'object' &&
+    typeof item.location.aisle === 'string' &&
+    typeof item.location.shelf === 'string' &&
+    typeof item.location.bin === 'string'
+  );
 }
 
 /**
- * Type guard to check if the item is of type NewInventoryItem
+ * Type guard to check if an item is of type OldItem.
+ * @param item - The item to check.
  */
-function isNewInventoryItem(item: any): item is NewInventoryItem {
-  return typeof item.item_code === 'string' && typeof item.quantity === 'string';
+function isOldItem(item: any): item is OldItem {
+  return typeof item.warehouse === 'string';
 }
 
 /**
- * Parses and normalizes inventory items to a common format.
+ * Normalize items to a common format.
  * Handles both old and new schema versions.
- * @param items - Array of items from the API response
- * @returns Normalized inventory items
+ * @param items - The list of items to normalize.
  */
-export function normalizeInventoryItems(items: any[]): NormalizedInventoryItem[] {
+export function normalizeItems(items: any[]): NormalizedItem[] {
   return items.map(item => {
-    if (isOldInventoryItem(item)) {
+    if (isNewItem(item)) {
       return {
-        itemCode: item.sku,
-        quantity: item.quantity
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        location_zone: item.location_zone,
+        location: item.location
       };
-    } else if (isNewInventoryItem(item)) {
+    } else if (isOldItem(item)) {
       return {
-        itemCode: item.item_code,
-        quantity: parseFloat(item.quantity)
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        location_zone: item.warehouse
       };
     } else {
-      throw new Error('Invalid inventory item schema');
+      throw new Error('Item schema not recognized');
     }
   });
 }
 
 /**
- * Example usage of the normalizeInventoryItems function.
+ * Public API to handle inventory data normalization.
+ * @param data - The raw data from the API.
  */
-export function processInventoryResponse(response: any): NormalizedInventoryItem[] {
-  if (!Array.isArray(response.items)) {
-    throw new Error('Invalid response format');
+export function handleInventoryData(data: any): NormalizedItem[] {
+  if (!Array.isArray(data.items)) {
+    throw new Error('Invalid data format: items should be an array');
   }
-  return normalizeInventoryItems(response.items);
+  return normalizeItems(data.items);
 }
