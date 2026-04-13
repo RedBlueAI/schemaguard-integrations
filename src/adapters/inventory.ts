@@ -1,60 +1,55 @@
-interface OldItem {
+type OldInventoryItem = {
   id: string;
   name: string;
+  quantity: number;
   unit_price: number;
-}
+};
 
-interface NewItem {
+type NewInventoryItem = {
   id: string;
   name: string;
-}
+  quantity: number;
+};
 
-interface OldInventory {
-  items: OldItem[];
-}
-
-interface NewInventory {
-  items: NewItem[];
-}
+type InventoryResponse = {
+  items: (OldInventoryItem | NewInventoryItem)[];
+};
 
 /**
- * Type guard to check if an item is of type OldItem.
- * @param item - The item to check.
- * @returns True if the item has a 'unit_price' field, false otherwise.
+ * Type guard to check if an item is in the old schema format.
+ * @param item Inventory item to check.
+ * @returns true if item is OldInventoryItem, otherwise false.
  */
-function isOldItem(item: any): item is OldItem {
+function isOldInventoryItem(item: any): item is OldInventoryItem {
   return 'unit_price' in item;
 }
 
 /**
- * Parses the inventory data and normalizes it to the OldInventory format.
- * If the 'unit_price' is missing, it defaults to 0.
- * @param inventory - The inventory data to parse.
- * @returns An inventory object compatible with the OldInventory interface.
+ * Normalizes inventory items to a common format.
+ * @param item Inventory item to normalize.
+ * @returns Normalized inventory item.
  */
-function parseInventory(inventory: any): OldInventory {
-  if (Array.isArray(inventory.items)) {
+function normalizeInventoryItem(item: OldInventoryItem | NewInventoryItem) {
+  if (isOldInventoryItem(item)) {
     return {
-      items: inventory.items.map(item => {
-        if (isOldItem(item)) {
-          return item;
-        } else {
-          return {
-            ...item,
-            unit_price: 0 // Default unit price for backward compatibility
-          };
-        }
-      })
+      ...item,
+      unitPrice: item.unit_price
+    };
+  } else {
+    return {
+      ...item,
+      unitPrice: 0 // Default or calculated value
     };
   }
-  throw new Error('Invalid inventory format');
 }
 
 /**
- * Public API to normalize inventory data.
- * @param data - The raw inventory data.
- * @returns A normalized inventory object.
+ * Adapter function to normalize inventory response.
+ * @param response Inventory API response.
+ * @returns Normalized inventory response.
  */
-export function normalizeInventoryData(data: any): OldInventory {
-  return parseInventory(data);
+export function adaptInventoryResponse(response: InventoryResponse) {
+  return {
+    items: response.items.map(normalizeInventoryItem)
+  };
 }
